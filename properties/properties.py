@@ -29,6 +29,114 @@ class ColliderTools_Properties(bpy.types.PropertyGroup):
     visibility_toggle_user_group_03: bpy.props.PointerProperty(
         type=user_groups.ColliderGroup)
 
+    # coacd props
+    threshold: bpy.props.FloatProperty(
+        name = 'threshold',
+        description = 'concavity threshold for terminating the decomposition',
+        default = 0.05,
+        soft_max = 1,
+        min = 0.01,
+        max = 1
+    )
+
+    max_convex_hull: bpy.props.IntProperty(
+        name = 'max_convex_hull',
+        description = 'max # convex hulls in the result, -1 for no maximum limitation, works only when merge is enabled',
+        default = -1,
+        soft_max = 32,
+        min = -1
+    )
+
+    resolution: bpy.props.IntProperty(
+        name = 'resolution',
+        description = 'sampling resolution for Hausdorff distance calculation',
+        default = 2000,
+        soft_max = 10000,
+        min = 1000,
+        max = 10000
+    )
+
+    mcts_nodes: bpy.props.IntProperty(
+        name = 'mcts_nodes',
+        description = 'max number of child nodes in MCTS',
+        default = 20,
+        soft_max = 40,
+        min = 10,
+        max = 40
+    )
+
+    mcts_iterations: bpy.props.IntProperty(
+        name = 'mcts_iterations',
+        description = 'number of search iterations in MCTS',
+        default = 150,
+        soft_max = 2000,
+        min = 60,
+        max = 2000
+    )
+
+    mcts_max_depth: bpy.props.IntProperty(
+        name = 'mcts_max_depth',
+        description = 'max search depth in MCTS',
+        default = 3,
+        soft_max = 7,
+        min = 2,
+        max = 7
+    )
+
+    pca: bpy.props.BoolProperty(
+        name='pca',
+        description = 'enable PCA pre-processing',
+        default = False
+    )
+
+    merge: bpy.props.BoolProperty(
+        name = 'merge',
+        description = 'merge postprocessing',
+        default = True
+    )
+
+    decimate: bpy.props.BoolProperty(
+        name = 'decimate',
+        description = 'enable max vertex constraint per convex hull',
+        default = False
+    )
+
+    max_ch_vertex: bpy.props.IntProperty(
+        name = 'max_ch_vertex',
+        description = 'max vertex value for each convex hull, only when decimate is enabled',
+        default = 256
+    )
+
+    extrude: bpy.props.BoolProperty(
+        name = 'extrude',
+        description = 'extrude neighboring convex hulls along the overlapping faces (other faces unchanged)',
+        default = False
+    )
+
+    extrude_margin: bpy.props.FloatProperty(
+        name = 'extrude_margin',
+        description = 'extrude margin, only when extrude is enabled',
+        default = 0.01
+    )
+
+    apx_mode: bpy.props.EnumProperty(
+        name = 'apx_mode',
+        description = 'approximation shape type',
+        items=(
+            ('ch', "Convex Hulls",
+            "Convex Hulls"),
+            ('box', "Cubes",
+            "Cubes"),
+        ),
+        default = "ch"
+    )
+
+    seed: bpy.props.IntProperty(
+        name ='seed',
+        description = 'random seed used for sampling',
+        default = 0
+    )
+
     # -h
     maxHullAmount: bpy.props.IntProperty(name='Hulls',
                                          description='Maximum number of output convex hulls',

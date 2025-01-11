@@ -67,7 +67,6 @@ def draw_auto_convex(layout, context):
         # col = draw_auto_convex_settings(colSettings, layout)
 
         if prefs.executable_path or prefs.default_executable_path:
-
             layout.operator("button.auto_convex", text="Auto Convex", icon='WINDOW')
             op = layout.operator("simple_collider.open_preferences", text="", icon='PREFERENCES')
             op.addon_name = addon_name
@@ -88,12 +87,40 @@ def draw_auto_convex_settings(colSettings, layout):
     """
     col = layout.column(align=True)
     row = col.row(align=True)
-    row.prop(colSettings, 'vhacd_shrinkwrap')
+
+    # row.prop(colSettings, 'vhacd_shrinkwrap')
+    # row = col.row(align=True)
+    # row.prop(colSettings, 'maxHullAmount')
+    # row.prop(colSettings, 'maxHullVertCount')
+    # row = col.row(align=True)
+    # row.prop(colSettings, 'voxelResolution')
+
     row = col.row(align=True)
-    row.prop(colSettings, 'maxHullAmount')
-    row.prop(colSettings, 'maxHullVertCount')
+    row.prop(colSettings, 'threshold')
     row = col.row(align=True)
-    row.prop(colSettings, 'voxelResolution')
+    row.prop(colSettings, 'mcts_nodes')
+    row = col.row(align=True)
+    row.prop(colSettings, 'mcts_iterations')
+    row = col.row(align=True)
+    row.prop(colSettings, 'mcts_max_depth')
+    row = col.row(align=True)
+    row.prop(colSettings, 'merge')
+    row = col.row(align=True)
+    row.prop(colSettings, 'max_convex_hull')
+    row = col.row(align=True)
+    row.prop(colSettings, 'resolution')
+    row = col.row(align=True)
+    row.prop(colSettings, 'pca')
+    row = col.row(align=True)
+    row.prop(colSettings, 'decimate')
+    row.prop(colSettings, 'max_ch_vertex')
+    row = col.row(align=True)
+    row.prop(colSettings, 'extrude')
+    row.prop(colSettings, 'extrude_margin')
+    row = col.row(align=True)
+    row.prop(colSettings, 'apx_mode')
+    row = col.row(align=True)
+    row.prop(colSettings, 'seed')
 
 
 def label_multiline(context, text, parent):
@@ -299,14 +326,14 @@ def draw_naming_presets(self, context):
     op.prefs_tabs = 'NAMING'
 
 
-# OPERATORS 
+# OPERATORS
 
 class EXPLORER_OT_open_directory_new(bpy.types.Operator, ImportHelper):
     """Open render output directory in Explorer"""
     bl_idname = "explorer.open_in_explorer"
     bl_label = "Open Folder"
     bl_description = "Open preset folder in explorer"
-    
+
     dirpath: bpy.props.StringProperty(default = '/')
     filename_ext = ".py"
     filter_glob: bpy.props.StringProperty(

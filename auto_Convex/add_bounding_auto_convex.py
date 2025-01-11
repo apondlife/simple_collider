@@ -5,6 +5,8 @@ import subprocess
 import bmesh
 import bpy
 from bpy.types import Operator
+import numpy
+import coacd
 
 from ..bmesh_operations.mesh_edit import bmesh_join
 from ..collider_shapes.add_bounding_primitive import OBJECT_OT_add_bounding_object
@@ -74,8 +76,8 @@ class VHACD_OT_convex_decomposition(OBJECT_OT_add_bounding_object, Operator):
         super().execute(context)
 
         overwrite_path = self.overwrite_executable_path(self.prefs.executable_path)
-        vhacd_exe = self.prefs.default_executable_path if not overwrite_path else overwrite_path
         data_path = self.set_temp_data_path(self.prefs.data_path)
+        vhacd_exe = self.prefs.default_executable_path if not overwrite_path else overwrite_path
 
         if not vhacd_exe or not data_path:
             if not vhacd_exe:
@@ -143,120 +145,52 @@ class VHACD_OT_convex_decomposition(OBJECT_OT_add_bounding_object, Operator):
             parent = convex_collision_data['parent']
             mesh = convex_collision_data['mesh']
 
-            joined_obj = bpy.data.objects.new('debug_joined_mesh', mesh.copy())
-            bpy.context.scene.collection.objects.link(joined_obj)
+            # bpy.data.meshes.remove(mesh)
+            print("running coacd")
+            # vhacd_process.wait()
+            b_mesh = bmesh.new()
+            b_mesh.from_mesh(mesh)
+            t_mesh = bmesh.ops.triangulate(b_mesh, faces=b_mesh.faces)
+            print(t_mesh)
+            print(t_mesh["faces"])
+            verts = numpy.array([vert.co for vert in b_mesh.verts])
+            faces = numpy.array([[vert.index for vert in face.verts] for face in t_mesh["faces"]])
+            print(verts)
+            print(faces)
+            c_mesh = coacd.Mesh(verts, faces)
+            settings = context.scene.simple_collider
+            parts = coacd.run_coacd(
+                mesh = c_mesh,
+                threshold = settings.threshold,
+                max_convex_hull = settings.max_convex_hull,
+                preprocess_mode = "Off",
+                preprocess_resolution = 50,
+                resolution = settings.resolution,
+                mcts_nodes = settings.mcts_nodes,
+                mcts_iterations = settings.mcts_iterations,
+                mcts_max_depth = settings.mcts_max_depth,
+                pca = settings.pca,
+                merge = settings.merge,
+                decimate = settings.decimate,
+                max_ch_vertex = settings.max_ch_vertex,
+                extrude = settings.extrude,
+                extrude_margin = settings.extrude_margin,
+                apx_mode = settings.apx_mode,
+                seed = settings.seed,
+            ) # a list of convex hulls.
 
-            # Base filename is object name with invalid characters removed
-            filename = ''.join(
-                c for c in parent.name if c.isalnum() or c in (' ', '.', '_')).rstrip()
+            print(parts)
 
-            obj_filename = os.path.join(data_path, '{}.obj'.format(filename))
-
-            colSettings = context.scene.simple_collider
-
-            print('\nExporting mesh for V-HACD: {}...'.format(obj_filename))
-
-            joined_obj.select_set(True)
-
-            io_use_addon = True if bpy.app.version < (3, 2, 0) else False
-            io_new_export_old_parameters = True if bpy.app.version < (3, 3, 0) else False
-
-            if io_use_addon:
-                import addon_utils
-
-                # enable the obj addon if it's disabled
-                addon_name = 'io_scene_obj'
-                addon_utils.check(addon_name)
-                success = addon_utils.enable(addon_name)
-
-                # Cancel Operation if addon can't be found
-                if not success:
-                    self.report(
-                        {'ERROR'}, "The obj export addon is needed for the auto convex to work and was not found")
-                    return self.cancel(context)
-
-                # Use export addon
-                bpy.ops.export_scene.obj(filepath=obj_filename, check_existing=False, filter_glob='*.obj;*.mtl',
-                                         use_selection=True, use_animation=False, use_mesh_modifiers=True,
-                                         use_edges=True, use_smooth_groups=False, use_smooth_groups_bitflags=False,
-                                         use_normals=False,
-                                         use_uvs=False, use_materials=False, use_triangles=False, use_nurbs=False,
-                                         use_vertex_groups=False, use_blen_objects=True, group_by_object=False,
-                                         group_by_material=False, keep_vertex_order=False, global_scale=1.0,
-                                         path_mode='AUTO', axis_forward='Y', axis_up='Z')
-
-                # Display a warning when Blender uses the small export instead of the fast one! 
-                self.report(
-                    {'WARNING'}, "This version of Blender uses the slow exporter/importer. Update to version 3.3!")
-
-            elif io_new_export_old_parameters:
-                bpy.ops.wm.obj_export(filepath=obj_filename, check_existing=False, export_selected_objects=True,
-                                      export_materials=False,
-                                      export_uv=False, export_normals=False, forward_axis='Y_FORWARD', up_axis='Z_UP')
-
-            else:  # io_new_export
-                bpy.ops.wm.obj_export(filepath=obj_filename, check_existing=False, export_selected_objects=True,
-                                      export_materials=False,
-                                      export_uv=False, export_normals=False, forward_axis='Y', up_axis='Z')
-
-            if self.prefs.debug:
-                joined_obj.color = (1.0, 0.1, 0.1, 1.0)
-                joined_obj.select_set(False)
-            else:  # remove debug meshes
-                bpy.data.objects.remove(joined_obj)
-
-            exportTime = time.time()
-
-            cmd_line = '"{}" "{}" -h {} -v {} -o {} -g {} -r {} -e {} -d {} -s {} -f {} -l {} -p {} -g {}'.format(
-                vhacd_exe,
-                obj_filename,
-                colSettings.maxHullAmount,
-                colSettings.maxHullVertCount,
-                'obj', 1,
-                colSettings.voxelResolution,
-                self.prefs.vhacd_volumneErrorPercent,
-                self.prefs.vhacd_maxRecursionDepth,
-                "true" if colSettings.vhacd_shrinkwrap else "false",
-                self.prefs.vhacd_fillMode,
-                self.prefs.vhacd_minEdgeLength,
-                "true" if self.prefs.vhacd_optimalSplitPlane else "false",
-                "true")
-
-            print('Running V-HACD...\n{}\n'.format(cmd_line))
-
-            vhacd_process = subprocess.Popen(cmd_line, bufsize=-1, close_fds=True, shell=True)
-            bpy.data.meshes.remove(mesh)
-            vhacd_process.wait()
-
-            # List of new files
-            dir_files = os.listdir(data_path)
-            obj_list = []
-            for file in dir_files:
-                if file.endswith('.obj'):
-                    obj_path = os.path.join(data_path, file)
-                    fileTime = os.path.getmtime(obj_path)
-
-                    # check if file was modified after export
-                    if fileTime > exportTime:
-                        obj_list.append(obj_path)
-
-            # List of imported objects
             imported = []
-            for obj_path in obj_list:
-                if io_use_addon:
-                    bpy.ops.import_scene.obj(filepath=obj_path, use_edges=True, use_smooth_groups=False,
-                                             use_split_objects=True, use_split_groups=False,
-                                             use_groups_as_vgroups=False, use_image_search=False, split_mode='ON',
-                                             global_clamp_size=0.0, axis_forward='Y', axis_up='Z')
-                elif io_new_export_old_parameters:
-                    bpy.ops.wm.obj_import(filepath=obj_path, forward_axis='Y_FORWARD', up_axis='Z_UP')
-                else:  # io_new_export
-                    bpy.ops.wm.obj_import(filepath=obj_path, forward_axis='Y', up_axis='Z')
+            for [p_verts, p_faces] in parts:
+                # create mesh from verts and faces
+                me = bpy.data.meshes.new("Mesh")
+                me.from_pydata(p_verts, [], p_faces)
 
-                imported.append(bpy.context.selected_objects)
-
-            # flatten list
-            imported = [item for sublist in imported for item in sublist]
+                # Add the mesh to the scene
+                obj = bpy.data.objects.new("Collider", me)
+                bpy.context.collection.objects.link(obj)
+                imported.append(obj)
 
             for ob in imported:
                 ob.select_set(False)
